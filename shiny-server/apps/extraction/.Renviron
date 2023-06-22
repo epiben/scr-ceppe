@@ -1,0 +1,3 @@
+DBHOST="database"
+DBUSER="shiny"
+DBPASS="pick_your_password_wisely"

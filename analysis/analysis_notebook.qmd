@@ -1,0 +1,244 @@
+---
+title: "CEPPE Scoping Review Analysis"
+author: "Benjamin Skov Kaas-Hansen"
+date: "13 June 2023"
+format: 
+  html:
+    page-layout: full
+    theme: cosmo
+    code-line-numbers: true
+    embed-resources: true
+    toc: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Load packages
+
+```{r warning = FALSE, message = FALSE}
+packs <- c(
+  "arrow",
+  "dplyr", 
+  "ggplot2",
+  "glue",
+  "lubridate",
+  "patchwork",
+  "purrr",
+  "readr",
+  "scales",
+  "stringr",
+  "table1",
+  "tidyr",
+  "scales"
+)
+
+for (p in packs) library(p, character.only = TRUE)
+```
+
+## Helpers
+
+```{r}
+beautify <- function(x) {
+  replacements <- c(
+    publication_year_principal_report = "Year of publication of principal report",
+    recruitment_duration_years = "Recruitment span in years",
+    n_randomised_participants = "No. randomised participants",
+    n_centres = "No. sites"
+  )
+  factor(str_replace_all(x, replacements), levels = replacements)
+}
+
+save_plot <- function(p, fname, ...) {
+  for (suffix in c("pdf", "png")) {
+    ggsave(glue("{fname}.{suffix}"), p, unit = "cm", ...)
+  }
+}
+```
+
+## Metadata
+
+```{r}
+metadata <- read_feather("public_data.arrow")
+glimpse(metadata)
+```
+
+## Table 1: summary statistics of categorical variables
+
+Continuous variables are summarised by median (IQR; range).
+
+```{r}
+table1_df <- metadata %>% 
+  select(
+    journal_principal_report,
+    intervention_type,
+    n_randomised_participants_cat,
+    n_centres_cat,
+    trial_phase,
+    trial_stopped_early,
+    trial_stopped_predefined_rule,
+    trial_stopped_reason_grouped,
+    only_covid_patients,
+    email_response,
+    any_predictive_enrichment,
+    recruitment_duration_years,
+    n_randomised_participants,
+    n_centres
+  ) 
+
+render_cont <- function(x, n_digits = 1) {
+  n_digits <- (!is.integer(x)) * n_digits # don't want decimals for integers
+  qs <- number(
+    quantile(x, c(0.5, 0.25, 0.75, 0.0, 1.0)), 
+    accuracy = 10^(-n_digits), 
+    big.mark = ","
+  )
+  do.call(sprintf, as.list(c("%s (%s to %s; %s to %s)", qs)))
+}
+
+table1(~ ., data = table1_df, render.continuous = render_cont)  
+```
+
+### Other in-text summary statistics
+
+```{r}
+sum(metadata$n_randomised_participants)
+mean(metadata$n_randomised_participants < 1000)
+```
+
+## Figure 2: Summary of select continuous variables
+
+```{r}
+plot_summary <- function(var) {
+  values <- na.omit(metadata[, var, drop = TRUE])
+  qs <- quantile(values, c(0.25, 0.5, 0.75))
+  
+  p <- ggplot() +
+    stat_ecdf(aes(x = values), pad = FALSE) +
+    coord_cartesian(ylim = c(0, 1)) +
+    scale_y_continuous(
+      labels = scales::percent, 
+      breaks = c(0, 0.5, 1), 
+      minor_breaks = seq(0, 1, by = 0.1)
+    ) +
+    theme_minimal() +
+    theme(
+      strip.background = element_rect(fill = "grey95", linewidth = 0),
+      axis.title = element_blank(),
+      strip.text = element_text(size = 7),
+      axis.text = element_text(size = 6),
+      panel.grid = element_line(linewidth = 0.3)
+    ) +
+    facet_wrap(~ beautify(var))
+  
+  scale_x <- if (diff(range(values, na.rm = TRUE)) > 100) {
+    scale_x_log10(minor_breaks = rep(10^(-10:10), each = 10) * rep(0:9, 21)) 
+  } else {
+    scale_x_continuous(breaks = seq(0, 2022, by = 2))
+  }
+  
+  min_x <- max(min(values), 0)
+  p +
+    scale_x +
+    geom_line(
+      aes(x = c(min_x, qs[1], qs[1]), y = c(0.25, 0.25, 0)), 
+      linewidth = 0.2, 
+      linetype = 2
+    ) +
+    geom_line(
+      aes(x = c(min_x, qs[2], qs[2]), y = c(0.5, 0.5, 0)), 
+      linewidth = 0.2, 
+      linetype = 2
+    ) +
+    geom_line(
+      aes(x = c(min_x, qs[3], qs[3]), y = c(0.75, 0.75, 0)), 
+      linewidth = 0.2, 
+      linetype = 2
+    )
+}
+
+figure2 <- c(
+  "publication_year_principal_report", 
+  "recruitment_duration_years",
+  "n_randomised_participants", 
+  "n_centres"
+) %>% 
+  map(plot_summary) %>% 
+  reduce(`+`) +
+  plot_layout(ncol = 2)
+
+figure2
+save_plot(figure2, "figure2", height = 10, width = 14)
+```
+
+## Figure 3: Temporal coverage
+
+```{r}
+fill_timeline <- function(start_month, end_month) {
+  n_months <- (start_month %--% end_month) / months(1)
+  start_month + months(0:n_months)
+}
+
+temp_coverage_df <- metadata %>% 
+  transmute(
+    rct_name,
+    n_randomised_participants,
+    m = map2(recruitment_start, recruitment_end, fill_timeline)
+  ) %>% 
+  unnest(m) %>% 
+  group_by(m) %>% 
+  summarise(n_rcts = n_distinct(rct_name))
+
+cum_df <- metadata %>% 
+  select(rct_name, recruitment_start, recruitment_end) %>% 
+  mutate(m = map2(recruitment_start, max(recruitment_end), fill_timeline)) %>% 
+  unnest(m) %>% 
+  group_by(m) %>% 
+  summarise(cum_n = n_distinct(rct_name)) %>% 
+  mutate(cum_prop = cum_n / max(cum_n)) %>% 
+  filter(month(m) == 1, year(m) %% 2 == 0) %>% 
+  mutate(label = map_chr(cum_prop, ~ percent(., 10^(-(. < 0.01)))))
+
+figure3 <- ggplot(temp_coverage_df, aes(x = m, y = n_rcts)) +
+  geom_area(fill = "dodgerblue", alpha = 0.2) +
+  geom_line(colour = "dodgerblue", linewidth = 0.5) +
+  theme_minimal() +
+  theme(
+      strip.background = element_rect(fill = "grey95", linewidth = 0),
+      axis.title.y = element_text(size = 7),
+      axis.title.x = element_blank(),
+      axis.text = element_text(size = 6),
+      panel.grid = element_line(linewidth = 0.3)
+    ) +
+  labs(y = "No. trials recruiting") +
+  scale_x_date(
+    breaks = ym(paste0(seq(1998, 2022, by = 2), "-01")),
+    labels = year,
+    sec.axis = sec_axis(trans = ~ ., breaks = cum_df$m, labels = cum_df$label),
+    expand = expansion()
+  ) +
+  scale_y_continuous(
+    breaks = 0:12 * 10,
+    minor_breaks = NULL
+  )
+
+figure3
+save_plot(figure3, "figure3", width = 14, height = 6)
+```
+
+### Other in-text summary statistics
+
+```{r}
+metadata %>% 
+  slice(which.min(recruitment_start), which.max(recruitment_end)) %>% 
+  select(rct_name, recruitment_period)
+
+slice_max(temp_coverage_df, n_rcts)
+mean(metadata$recruitment_start >= ym("2012-01"))
+```
+
+## Session information
+
+```{r}
+sessionInfo(packs)
+```
