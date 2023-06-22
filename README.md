@@ -5,7 +5,7 @@ This is the repository for the above-mentioned scoping review with the software 
 ## Data and analytic code 
 Folder: `analysis/`
 
-The analytic code comprises a Quarto notebook (source and HTML version) inside an RStudio project that uses `renv` for reproducibility. The dataset is available in [analysis/public_data.tsv](analysis/public_data.tsv) (tabulator separated)tsv and [analysis/public_data.arrow](analysis/public_data.arrow) (Apache Arrow IPC file a.k.a.= Feather v2 format), and contains data on the following 22 variables:
+The analytic code comprises a Quarto notebook (source and HTML version) inside an RStudio project that uses `renv` for reproducibility. The dataset is available in [analysis/public_data.tsv](analysis/public_data.tsv) (tabulator separated)tsv and [analysis/public_data.arrow](analysis/public_data.arrow) (Apache Arrow IPC file = Feather v2 format), and contains data on the following 22 variables:
 
 | **Name**                            | **Type** | **Remark**                               |
 |-------------------------------------|----------|------------------------------------------|
@@ -32,7 +32,7 @@ The analytic code comprises a Quarto notebook (source and HTML version) inside a
 | `trial_stopped_reason_grouped`      | Text     | Derived                                  |
 | `title_principal_report`            | Text     |                                          |
 
-The folder also contains [analysis/included_trials.bib](analysis/included_trials.bib) with bibliographic information for all 315 articles included in the review (one article reported two distinct trials).
+The folder also contains [analysis/included_trials.bib](analysis/included_trials.bib) with bibliographic information for all 315 articles included in the review (one article reported two distinct trials). The analysis notebook can be previewed at [https://htmlpreview.github.io/?https://github.com/epiben/scr-ceppe/blob/main/analysis/analysis_notebook.html#table-1-summary-statistics-of-categorical-variables](https://htmlpreview.github.io/?https://github.com/epiben/scr-ceppe/blob/main/analysis/analysis_notebook.html#table-1-summary-statistics-of-categorical-variables).
 
 ## Extraction form
 The extraction form was a fairly simple Shiny app and self-hosted on my Raspberry Pi 4 (see below) along with a Postgres database, running as two services (set up in the [shiny-server/docker-compose.yaml](shiny-server/docker-compose.yaml)).
