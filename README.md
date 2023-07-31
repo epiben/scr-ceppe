@@ -1,4 +1,4 @@
-# Randomised controlled trials in critical care do not use real-world causal evidence for planned predictive enrichment: a scoping review
+# Real-world causal evidence for planned predictive enrichment in critical care trials: a scoping review
 
 This is the repository for the above-mentioned scoping review with the software used to produce the results reported therein as well as clean data and data documentation.
 
